@@ -1,0 +1,30 @@
+[package]
+name = "plugin-erc20"
+version = "0.1.0"
+edition = "2021"
+authors = ["yogh333"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nanos_sdk = { path = "../ledger-nanos-sdk" }
+nanos_ui = { path = "../ledger-nanos-ui" }
+
+[features]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 'z' 
+lto = true
+
+[package.metadata.nanos]
+api_level = "1"
+curve = ["secp256k1"]
+path = ["m/2645'"]
+flags = "0"
+icon = "crab.gif"
+icon_small = "starknet_small.gif"
+name = "plugin-boilerplate"
