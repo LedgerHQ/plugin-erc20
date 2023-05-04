@@ -11,6 +11,8 @@ use nanos_sdk::plugin::{
     PluginInitParams,
     PluginFeedParams,
     PluginFinalizeParams,
+    PluginQueryUiParams,
+    PluginGetUiParams,
     PluginInteractionType,
     value_to_decimal_string,
 };
@@ -24,18 +26,17 @@ struct Selector {
 
 struct Erc20Ctx {
     address: [u8; 32],
-    decimals: u8,
-    ticker: [u8; 4],
     method: &'static str,
     destination: [u8; 32],
-    amount: [u8; 32]
+    amount: [u8; 32],
+    token_info_idx: Option<usize>,
 }
 
 const N_SELECTORS: usize = 2;
 
 const METHODS: [&str; N_SELECTORS] = [
-    "transfer", 
-    "approve"
+    "TRANSFER", 
+    "APPROVE"
 ];
 const SN_KECCAK: [[u8; 32]; N_SELECTORS] = [
     [
@@ -69,10 +70,12 @@ mod context;
 use context::{Transaction};
 
 mod token;
+use token::{TOKENS, TokenInfo};
 
 #[no_mangle]
 extern "C" fn sample_main(arg0: u32) {
 
+    // to remove when PR https://github.com/LedgerHQ/ledger-nanos-sdk/pull/69 will be merged into SDK
     let selectors: [Selector; 2] = [
         Selector {
             name: METHODS[0],
@@ -81,6 +84,28 @@ extern "C" fn sample_main(arg0: u32) {
         Selector {
             name: METHODS[1],
             value: SN_KECCAK[1]
+        }
+    ];
+
+    // to remove when PR https://github.com/LedgerHQ/ledger-nanos-sdk/pull/69 will be merged into SDK
+    let tokens: [TokenInfo; 2] = [
+        TokenInfo {
+            address: [
+                0x06, 0x8f, 0x5c, 0x6a, 0x61, 0x78, 0x07, 0x68, 0x45, 0x5d, 0xe6, 0x90, 0x77, 0xe0, 0x7e, 0x89, 
+                0x78, 0x78, 0x39, 0xbf, 0x81, 0x66, 0xde, 0xcf, 0xbf, 0x92, 0xb6, 0x45, 0x20, 0x9c, 0x0f, 0xb8
+            ],
+            name: "Tether USDT",
+            ticker: "USDT".as_bytes(),
+            decimals: 6
+        },
+        TokenInfo {
+            address: [
+                0x04, 0x9d, 0x36, 0x57, 0x0d, 0x4e, 0x46, 0xf4, 0x8e, 0x99, 0x67, 0x4b, 0xd3, 0xfc, 0xc8, 0x46,
+                0x44, 0xdd, 0xd6, 0xb9, 0x6f, 0x7c, 0x74, 0x1b, 0x15, 0x62, 0xb8, 0x2f, 0x9e, 0x00, 0x4d, 0xc7
+            ],
+            name: "Ether",
+            ticker: "ETH".as_bytes(),
+            decimals: 18
         }
     ];
 
@@ -160,6 +185,97 @@ extern "C" fn sample_main(arg0: u32) {
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
             let tx_info: &Transaction = unsafe {&*(params.app_data as *const Transaction)};
 
+            erc20_ctx.token_info_idx = None;
+            for i in 0..2 {
+                if erc20_ctx.address == tokens[i].address {
+                    erc20_ctx.token_info_idx = Some(i);
+                }
+            }
+
+            params.need_info = match erc20_ctx.token_info_idx {
+                Some(idx) => {
+                    debug::print("token info found in plugin\n");
+                    false
+                }
+                None => {
+                    debug::print("token info not found in plugin\n");
+                    true
+                }
+            };
+            params.num_ui_screens = 4;
+        }
+        PluginInteractionType::QueryUI => {
+            debug::print("QueryUI plugin\n");
+
+            let value2 = unsafe { *args.add(1) as *mut PluginQueryUiParams };
+
+            let params: &mut PluginQueryUiParams = unsafe { &mut *value2 };
+
+            let title = "ERC-20 OPERATION".as_bytes();
+            params.title[..title.len()].copy_from_slice(title);
+            params.title_len = title.len();
+        }
+        PluginInteractionType::GetUI => {
+            debug::print("GetUI plugin\n");
+
+            let value2 = unsafe { *args.add(1) as *mut PluginGetUiParams };
+
+            let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
+
+            debug::print("requested screen index: ");
+            let mut s = debug::to_hex_string::<2>(debug::Value::U8(params.ui_screen_idx as u8));
+            debug::print(core::str::from_utf8(&s).unwrap());
+            debug::print("\n");
+
+            let idx = erc20_ctx.token_info_idx.expect("unknown token");
+            let token = tokens[idx];
+
+            match params.ui_screen_idx {
+                0 => {
+                    let title = "TOKEN:".as_bytes();
+                    params.title[..title.len()].copy_from_slice(title);
+                    params.title_len = title.len();
+
+                    
+                    let msg = token.name.as_bytes(); 
+                    params.msg[..msg.len()].copy_from_slice(msg);
+                    params.msg_len = msg.len();
+                }
+                1 => {
+                    let title = "METHOD:".as_bytes();
+                    params.title[..title.len()].copy_from_slice(title);
+                    params.title_len = title.len();
+
+                    let msg = erc20_ctx.method.as_bytes();
+                    params.msg[..msg.len()].copy_from_slice(msg);
+                    params.msg_len = msg.len();
+                }
+                2 => {
+                    let title = "TO:".as_bytes();
+                    params.title[..title.len()].copy_from_slice(title);
+                    params.title_len = title.len();
+
+                    let msg = debug::to_hex_string::<64>(debug::Value::ARR32(erc20_ctx.destination));
+                    params.msg[..64].copy_from_slice(&msg[..]);
+                    params.msg_len = 64;
+                }
+                3 => {
+                    let title = "AMOUNT:".as_bytes();
+                    params.title[..title.len()].copy_from_slice(title);
+                    params.title_len = title.len();
+
+                    let mut amount_string: [u8; 100] = [b'0'; 100];
+                    let mut amount_string_length: usize = 0;
+                    value_to_decimal_string(&erc20_ctx.amount, token.decimals, &mut amount_string[..], &mut amount_string_length);
+                    
+                    params.msg[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
+                    params.msg_len = amount_string_length;
+                }
+                _ => {
+
+                }
+            }
         }
         _ => {
             nanos_sdk::debug::print("Not implemented\n");

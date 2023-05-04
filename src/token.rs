@@ -1,11 +1,12 @@
+#[derive(Debug, Copy, Clone)]
 pub struct TokenInfo {
-    address: [u8; 32],
-    name: &'static str,
-    ticker: &'static [u8],
-    decimals: usize
+    pub address: [u8; 32],
+    pub name: &'static str,
+    pub ticker: &'static [u8],
+    pub decimals: usize
 }
 
-const TOKENS: [TokenInfo; 2] = [
+pub const TOKENS: [TokenInfo; 2] = [
     TokenInfo {
         address: [
             0x06, 0x8f, 0x5c, 0x6a, 0x61, 0x78, 0x07, 0x68, 0x45, 0x5d, 0xe6, 0x90, 0x77, 0xe0, 0x7e, 0x89, 
