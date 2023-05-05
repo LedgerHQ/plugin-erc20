@@ -8,16 +8,21 @@ use nanos_sdk::bindings::{
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 use nanos_sdk::plugin::{
+    PluginCoreParams,
+    PluginCheckParams,
     PluginInitParams,
     PluginFeedParams,
     PluginFinalizeParams,
     PluginQueryUiParams,
     PluginGetUiParams,
     PluginInteractionType,
-    value_to_decimal_string,
+    PluginResult
 };
 
-use nanos_sdk::debug;
+use nanos_sdk::{
+    string,
+    testing
+};
 
 struct Selector {
     name: &'static str,
@@ -116,21 +121,21 @@ extern "C" fn sample_main(arg0: u32) {
     
     match operation {
         PluginInteractionType::Check => {
-            debug::print("Check plugin presence\n");
+            testing::debug_print("Check plugin presence\n");
         }
         PluginInteractionType::Init => {
-            debug::print("Init plugin context\n");
+            testing::debug_print("Init plugin context\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginInitParams };
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.app_data as *const Transaction)};
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
 
             {
-                let s = debug::to_hex_string::<64>(debug::Value::ARR32(tx_info.sender_address.value));
-                debug::print(core::str::from_utf8(&s).unwrap());
-                debug::print("\n");
+                let s = string::to_utf8::<64>(string::Value::ARR32(tx_info.sender_address.value));
+                testing::debug_print(core::str::from_utf8(&s).unwrap());
+                testing::debug_print("\n");
             }
 
             erc20_ctx.address = tx_info.calldata_v1.calls[0].to.value;
@@ -139,51 +144,54 @@ extern "C" fn sample_main(arg0: u32) {
                     erc20_ctx.method = selectors[i].name;
                 }
             }
+            params.core_params.plugin_result = PluginResult::Ok;
         }   
         PluginInteractionType::Feed => {
-            debug::print("Feed plugin\n");
+            testing::debug_print("Feed plugin\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginFeedParams };
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.app_data as *const Transaction)};
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
 
             erc20_ctx.destination = tx_info.calldata_v1.calls[0].call_data[0].value;
             erc20_ctx.amount = tx_info.calldata_v1.calls[0].call_data[1].value;
 
             {
-                debug::print("Token: 0x");         
-                let mut s = debug::to_hex_string::<64>(debug::Value::ARR32(erc20_ctx.address));
-                debug::print(core::str::from_utf8(&s).unwrap());
-                debug::print("\n");
+                testing::debug_print("Token: 0x");         
+                let mut s = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.address));
+                testing::debug_print(core::str::from_utf8(&s).unwrap());
+                testing::debug_print("\n");
 
-                debug::print("method: ");
-                debug::print(erc20_ctx.method);
-                debug::print("\n");
+                testing::debug_print("method: ");
+                testing::debug_print(erc20_ctx.method);
+                testing::debug_print("\n");
 
-                debug::print("destination: 0x");
-                s = debug::to_hex_string::<64>(debug::Value::ARR32(erc20_ctx.destination));
-                debug::print(core::str::from_utf8(&s).unwrap());
-                debug::print("\n");
+                testing::debug_print("destination: 0x");
+                s = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.destination));
+                testing::debug_print(core::str::from_utf8(&s).unwrap());
+                testing::debug_print("\n");
 
-                debug::print("amount: ");
+                testing::debug_print("amount: ");
                 let mut amount_string: [u8; 100] = [b'0'; 100];
                 let mut amount_string_length: usize = 0;
-                value_to_decimal_string(&erc20_ctx.amount, 18, &mut amount_string[..], &mut amount_string_length);
-                debug::print(core::str::from_utf8(&amount_string[..amount_string_length]).unwrap());
-                debug::print("\n");
+                string::uint256_to_float(&erc20_ctx.amount, 18, &mut amount_string[..], &mut amount_string_length);
+                testing::debug_print(core::str::from_utf8(&amount_string[..amount_string_length]).unwrap());
+                testing::debug_print("\n");
             }
+
+            params.core_params.plugin_result = PluginResult::Ok;
         
         }
         PluginInteractionType::Finalize => {
-            debug::print("Finalize plugin\n");
+            testing::debug_print("Finalize plugin\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginFinalizeParams };
 
             let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.app_data as *const Transaction)};
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -191,21 +199,20 @@ extern "C" fn sample_main(arg0: u32) {
                     erc20_ctx.token_info_idx = Some(i);
                 }
             }
-
-            params.need_info = match erc20_ctx.token_info_idx {
+            params.num_ui_screens = 4;
+            params.core_params.plugin_result = match erc20_ctx.token_info_idx {
                 Some(idx) => {
-                    debug::print("token info found in plugin\n");
-                    false
+                    testing::debug_print("token info found in plugin\n");
+                    PluginResult::Ok
                 }
                 None => {
-                    debug::print("token info not found in plugin\n");
-                    true
+                    testing::debug_print("token info not found in plugin\n");
+                    PluginResult::NeedInfo
                 }
             };
-            params.num_ui_screens = 4;
         }
-        PluginInteractionType::QueryUI => {
-            debug::print("QueryUI plugin\n");
+        PluginInteractionType::QueryUi => {
+            testing::debug_print("QueryUI plugin\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginQueryUiParams };
 
@@ -214,19 +221,20 @@ extern "C" fn sample_main(arg0: u32) {
             let title = "ERC-20 OPERATION".as_bytes();
             params.title[..title.len()].copy_from_slice(title);
             params.title_len = title.len();
+            params.core_params.plugin_result = PluginResult::Ok;
         }
-        PluginInteractionType::GetUI => {
-            debug::print("GetUI plugin\n");
+        PluginInteractionType::GetUi => {
+            testing::debug_print("GetUI plugin\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginGetUiParams };
 
             let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
 
-            debug::print("requested screen index: ");
-            let mut s = debug::to_hex_string::<2>(debug::Value::U8(params.ui_screen_idx as u8));
-            debug::print(core::str::from_utf8(&s).unwrap());
-            debug::print("\n");
+            testing::debug_print("requested screen index: ");
+            let mut s = string::to_utf8::<2>(string::Value::U8(params.ui_screen_idx as u8));
+            testing::debug_print(core::str::from_utf8(&s).unwrap());
+            testing::debug_print("\n");
 
             let idx = erc20_ctx.token_info_idx.expect("unknown token");
             let token = tokens[idx];
@@ -241,6 +249,8 @@ extern "C" fn sample_main(arg0: u32) {
                     let msg = token.name.as_bytes(); 
                     params.msg[..msg.len()].copy_from_slice(msg);
                     params.msg_len = msg.len();
+
+                    params.core_params.plugin_result = PluginResult::Ok;
                 }
                 1 => {
                     let title = "METHOD:".as_bytes();
@@ -250,15 +260,19 @@ extern "C" fn sample_main(arg0: u32) {
                     let msg = erc20_ctx.method.as_bytes();
                     params.msg[..msg.len()].copy_from_slice(msg);
                     params.msg_len = msg.len();
+
+                    params.core_params.plugin_result = PluginResult::Ok;
                 }
                 2 => {
                     let title = "TO:".as_bytes();
                     params.title[..title.len()].copy_from_slice(title);
                     params.title_len = title.len();
 
-                    let msg = debug::to_hex_string::<64>(debug::Value::ARR32(erc20_ctx.destination));
+                    let msg = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.destination));
                     params.msg[..64].copy_from_slice(&msg[..]);
                     params.msg_len = 64;
+
+                    params.core_params.plugin_result = PluginResult::Ok;
                 }
                 3 => {
                     let title = "AMOUNT:".as_bytes();
@@ -267,18 +281,20 @@ extern "C" fn sample_main(arg0: u32) {
 
                     let mut amount_string: [u8; 100] = [b'0'; 100];
                     let mut amount_string_length: usize = 0;
-                    value_to_decimal_string(&erc20_ctx.amount, token.decimals, &mut amount_string[..], &mut amount_string_length);
+                    string::uint256_to_float(&erc20_ctx.amount, token.decimals, &mut amount_string[..], &mut amount_string_length);
                     
                     params.msg[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
                     params.msg_len = amount_string_length;
+
+                    params.core_params.plugin_result = PluginResult::Ok;
                 }
                 _ => {
-
+                    params.core_params.plugin_result = PluginResult::Err;
                 }
             }
         }
         _ => {
-            nanos_sdk::debug::print("Not implemented\n");
+            testing::debug_print("Not implemented\n");
         }
     }
     
