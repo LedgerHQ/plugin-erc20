@@ -13,6 +13,7 @@ use nanos_sdk::plugin::{
     PluginInitParams,
     PluginFeedParams,
     PluginFinalizeParams,
+    PluginProvideDataParams,
     PluginQueryUiParams,
     PluginGetUiParams,
     PluginInteractionType,
@@ -22,6 +23,13 @@ use nanos_sdk::plugin::{
 use nanos_sdk::{
     string,
     testing
+};
+
+use nanos_sdk::starknet::{
+    AbstractCall,
+    AbstractCallData,
+    TransactionInfo, 
+    FieldElement
 };
 
 struct Selector {
@@ -70,9 +78,6 @@ const SELECTORS: [Selector; N_SELECTORS] = [
         ]
     }
 ];
-
-mod context;
-use context::{Transaction};
 
 mod token;
 use token::{TOKENS, TokenInfo};
@@ -130,17 +135,17 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
+            let call: &AbstractCall = unsafe {&*(params.core_params.app_data as *const AbstractCall)};
 
-            {
+            /*{
                 let s = string::to_utf8::<64>(string::Value::ARR32(tx_info.sender_address.value));
                 testing::debug_print(core::str::from_utf8(&s).unwrap());
                 testing::debug_print("\n");
-            }
+            }*/
 
-            erc20_ctx.address = tx_info.calldata_v1.calls[0].to.value;
+            erc20_ctx.address = call.to.value; 
             for i in 0..N_SELECTORS {
-                if tx_info.calldata_v1.calls[0].selector.value == selectors[i].value {
+                if call.selector.value == selectors[i].value {
                     erc20_ctx.method = selectors[i].name;
                 }
             }
@@ -153,10 +158,16 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
+            let call: &AbstractCall = unsafe {&*(params.core_params.app_data as *const AbstractCall)};
 
-            erc20_ctx.destination = tx_info.calldata_v1.calls[0].call_data[0].value;
-            erc20_ctx.amount = tx_info.calldata_v1.calls[0].call_data[1].value;
+            erc20_ctx.destination = match call.call_data[0] {
+                AbstractCallData::Felt(fe) => fe.value,
+                _ => FieldElement::ZERO.value
+            };
+            erc20_ctx.amount = match call.call_data[1] {
+                AbstractCallData::Felt(fe) => fe.value,
+                _ => FieldElement::ZERO.value
+            };
 
             {
                 testing::debug_print("Token: 0x");         
@@ -191,7 +202,6 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let tx_info: &Transaction = unsafe {&*(params.core_params.app_data as *const Transaction)};
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -211,6 +221,15 @@ extern "C" fn sample_main(arg0: u32) {
                 }
             };
         }
+        PluginInteractionType::ProvideData => {
+            testing::debug_print("ProvideData plugin\n");
+
+            let value2 = unsafe { *args.add(1) as *mut PluginProvideDataParams };
+
+            let params: &mut PluginProvideDataParams = unsafe { &mut *value2 };
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+
+         }
         PluginInteractionType::QueryUi => {
             testing::debug_print("QueryUI plugin\n");
 
