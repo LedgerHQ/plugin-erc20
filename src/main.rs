@@ -13,7 +13,6 @@ use nanos_sdk::plugin::{
     PluginInitParams,
     PluginFeedParams,
     PluginFinalizeParams,
-    PluginProvideDataParams,
     PluginQueryUiParams,
     PluginGetUiParams,
     PluginInteractionType,
@@ -26,8 +25,7 @@ use nanos_sdk::{
 };
 
 use nanos_sdk::starknet::{
-    AbstractCall,
-    AbstractCallData,
+    Call,
     TransactionInfo, 
     FieldElement
 };
@@ -135,7 +133,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let call: &AbstractCall = unsafe {&*(params.core_params.app_data as *const AbstractCall)};
+            let call: &Call = unsafe {&*(params.data_in as *const Call)};
 
             /*{
                 let s = string::to_utf8::<64>(string::Value::ARR32(tx_info.sender_address.value));
@@ -158,16 +156,10 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let call: &AbstractCall = unsafe {&*(params.core_params.app_data as *const AbstractCall)};
+            let call: &Call = unsafe {&*(params.data_in[0] as *const Call)};
 
-            erc20_ctx.destination = match call.call_data[0] {
-                AbstractCallData::Felt(fe) => fe.value,
-                _ => FieldElement::ZERO.value
-            };
-            erc20_ctx.amount = match call.call_data[1] {
-                AbstractCallData::Felt(fe) => fe.value,
-                _ => FieldElement::ZERO.value
-            };
+            erc20_ctx.destination = call.calldata[0].value;
+            erc20_ctx.amount = call.calldata[1].value;
 
             {
                 testing::debug_print("Token: 0x");         
@@ -221,15 +213,6 @@ extern "C" fn sample_main(arg0: u32) {
                 }
             };
         }
-        PluginInteractionType::ProvideData => {
-            testing::debug_print("ProvideData plugin\n");
-
-            let value2 = unsafe { *args.add(1) as *mut PluginProvideDataParams };
-
-            let params: &mut PluginProvideDataParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-
-         }
         PluginInteractionType::QueryUi => {
             testing::debug_print("QueryUI plugin\n");
 
