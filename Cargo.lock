@@ -123,6 +123,7 @@ dependencies = [
 name = "plugin-erc20"
 version = "0.1.0"
 dependencies = [
+ "heapless",
  "nanos_sdk",
  "nanos_ui",
 ]

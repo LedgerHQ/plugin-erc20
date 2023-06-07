@@ -25,10 +25,13 @@ use nanos_sdk::{
 };
 
 use nanos_sdk::starknet::{
+    AbstractCall,
     Call,
     TransactionInfo, 
-    FieldElement
+    FieldElement, AbstractCallData
 };
+
+use heapless::Vec;
 
 struct Selector {
     name: &'static str,
@@ -132,8 +135,10 @@ extern "C" fn sample_main(arg0: u32) {
             let value2 = unsafe { *args.add(1) as *mut PluginInitParams };
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let call: &Call = unsafe {&*(params.data_in as *const Call)};
+            let core_params = params.core_params.as_mut().unwrap();
+
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let call: &AbstractCall = unsafe {&*(params.data_in as *const AbstractCall)};
 
             /*{
                 let s = string::to_utf8::<64>(string::Value::ARR32(tx_info.sender_address.value));
@@ -147,7 +152,7 @@ extern "C" fn sample_main(arg0: u32) {
                     erc20_ctx.method = selectors[i].name;
                 }
             }
-            params.core_params.plugin_result = PluginResult::Ok;
+            params.result = PluginResult::Ok;
         }   
         PluginInteractionType::Feed => {
             testing::debug_print("Feed plugin\n");
@@ -155,11 +160,20 @@ extern "C" fn sample_main(arg0: u32) {
             let value2 = unsafe { *args.add(1) as *mut PluginFeedParams };
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let call: &Call = unsafe {&*(params.data_in[0] as *const Call)};
+            let core_params = params.core_params.as_mut().unwrap();
 
-            erc20_ctx.destination = call.calldata[0].value;
-            erc20_ctx.amount = call.calldata[1].value;
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let calldata: &Vec<AbstractCallData, 8> = unsafe {&*(params.data_in as *const Vec<AbstractCallData, 8>)};
+
+            erc20_ctx.destination = match calldata[0] {
+                AbstractCallData::Felt(v) => v.value,
+                _ => FieldElement::ZERO.value
+            };
+
+            erc20_ctx.amount = match calldata[1] {
+                AbstractCallData::Felt(v) => v.value,
+                _ => FieldElement::ZERO.value
+            };
 
             {
                 testing::debug_print("Token: 0x");         
@@ -183,9 +197,7 @@ extern "C" fn sample_main(arg0: u32) {
                 testing::debug_print(core::str::from_utf8(&amount_string[..amount_string_length]).unwrap());
                 testing::debug_print("\n");
             }
-
-            params.core_params.plugin_result = PluginResult::Ok;
-        
+            params.result = PluginResult::Ok;
         }
         PluginInteractionType::Finalize => {
             testing::debug_print("Finalize plugin\n");
@@ -193,7 +205,9 @@ extern "C" fn sample_main(arg0: u32) {
             let value2 = unsafe { *args.add(1) as *mut PluginFinalizeParams };
 
             let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let core_params = params.core_params.as_mut().unwrap();
+
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -202,8 +216,8 @@ extern "C" fn sample_main(arg0: u32) {
                 }
             }
             params.num_ui_screens = 4;
-            params.core_params.plugin_result = match erc20_ctx.token_info_idx {
-                Some(idx) => {
+            params.result = match erc20_ctx.token_info_idx {
+                Some(_idx) => {
                     testing::debug_print("token info found in plugin\n");
                     PluginResult::Ok
                 }
@@ -219,11 +233,13 @@ extern "C" fn sample_main(arg0: u32) {
             let value2 = unsafe { *args.add(1) as *mut PluginQueryUiParams };
 
             let params: &mut PluginQueryUiParams = unsafe { &mut *value2 };
+            let _core_params = params.core_params.as_mut().unwrap();
 
             let title = "ERC-20 OPERATION".as_bytes();
             params.title[..title.len()].copy_from_slice(title);
             params.title_len = title.len();
-            params.core_params.plugin_result = PluginResult::Ok;
+            
+            params.result = PluginResult::Ok;
         }
         PluginInteractionType::GetUi => {
             testing::debug_print("GetUI plugin\n");
@@ -231,10 +247,12 @@ extern "C" fn sample_main(arg0: u32) {
             let value2 = unsafe { *args.add(1) as *mut PluginGetUiParams };
 
             let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(params.core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let core_params = params.core_params.as_mut().unwrap();
+
+            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
 
             testing::debug_print("requested screen index: ");
-            let mut s = string::to_utf8::<2>(string::Value::U8(params.ui_screen_idx as u8));
+            let s = string::to_utf8::<2>(string::Value::U8(params.ui_screen_idx as u8));
             testing::debug_print(core::str::from_utf8(&s).unwrap());
             testing::debug_print("\n");
 
@@ -252,7 +270,7 @@ extern "C" fn sample_main(arg0: u32) {
                     params.msg[..msg.len()].copy_from_slice(msg);
                     params.msg_len = msg.len();
 
-                    params.core_params.plugin_result = PluginResult::Ok;
+                    params.result = PluginResult::Ok;
                 }
                 1 => {
                     let title = "METHOD:".as_bytes();
@@ -263,7 +281,7 @@ extern "C" fn sample_main(arg0: u32) {
                     params.msg[..msg.len()].copy_from_slice(msg);
                     params.msg_len = msg.len();
 
-                    params.core_params.plugin_result = PluginResult::Ok;
+                    params.result = PluginResult::Ok;
                 }
                 2 => {
                     let title = "TO:".as_bytes();
@@ -274,7 +292,7 @@ extern "C" fn sample_main(arg0: u32) {
                     params.msg[..64].copy_from_slice(&msg[..]);
                     params.msg_len = 64;
 
-                    params.core_params.plugin_result = PluginResult::Ok;
+                    params.result = PluginResult::Ok;
                 }
                 3 => {
                     let title = "AMOUNT:".as_bytes();
@@ -288,10 +306,10 @@ extern "C" fn sample_main(arg0: u32) {
                     params.msg[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
                     params.msg_len = amount_string_length;
 
-                    params.core_params.plugin_result = PluginResult::Ok;
+                    params.result = PluginResult::Ok;
                 }
                 _ => {
-                    params.core_params.plugin_result = PluginResult::Err;
+                    params.result = PluginResult::Err;
                 }
             }
         }
