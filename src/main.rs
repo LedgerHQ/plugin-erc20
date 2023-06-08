@@ -31,8 +31,6 @@ use nanos_sdk::starknet::{
     FieldElement, AbstractCallData
 };
 
-use heapless::Vec;
-
 struct Selector {
     name: &'static str,
     value: [u8; 32]
@@ -41,7 +39,7 @@ struct Selector {
 struct Erc20Ctx {
     address: [u8; 32],
     method: &'static str,
-    destination: [u8; 32],
+    destination: string::String<64>,
     amount: [u8; 32],
     token_info_idx: Option<usize>,
 }
@@ -163,11 +161,23 @@ extern "C" fn sample_main(arg0: u32) {
             let core_params = params.core_params.as_mut().unwrap();
 
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
-            let calldata: &Vec<AbstractCallData, 8> = unsafe {&*(params.data_in as *const Vec<AbstractCallData, 8>)};
 
-            erc20_ctx.destination = match calldata[0] {
-                AbstractCallData::Felt(v) => v.value,
-                _ => FieldElement::ZERO.value
+            let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<32>; 16]))};
+            let calldata = data_in.0;
+            let call_to_string = data_in.1;
+
+            match calldata[0] {
+                AbstractCallData::Felt(v) => {
+                    erc20_ctx.destination = v.value.into();
+                },
+                AbstractCallData::CallRef(idx, shift) => {
+                    let s = call_to_string[idx];
+                    for i in 0..s.len {
+                        erc20_ctx.destination.arr[i] = s.arr[i];
+                    }
+                    erc20_ctx.destination.len = s.len;
+                }
+                _ => ()
             };
 
             erc20_ctx.amount = match calldata[1] {
@@ -177,17 +187,16 @@ extern "C" fn sample_main(arg0: u32) {
 
             {
                 testing::debug_print("Token: 0x");         
-                let mut s = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.address));
-                testing::debug_print(core::str::from_utf8(&s).unwrap());
+                let s: string::String<64> = erc20_ctx.address.into();
+                testing::debug_print(core::str::from_utf8(&s.arr[..]).unwrap());
                 testing::debug_print("\n");
 
                 testing::debug_print("method: ");
                 testing::debug_print(erc20_ctx.method);
                 testing::debug_print("\n");
 
-                testing::debug_print("destination: 0x");
-                s = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.destination));
-                testing::debug_print(core::str::from_utf8(&s).unwrap());
+                testing::debug_print("destination: ");
+                testing::debug_print(core::str::from_utf8(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]).unwrap());
                 testing::debug_print("\n");
 
                 testing::debug_print("amount: ");
@@ -252,8 +261,8 @@ extern "C" fn sample_main(arg0: u32) {
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
 
             testing::debug_print("requested screen index: ");
-            let s = string::to_utf8::<2>(string::Value::U8(params.ui_screen_idx as u8));
-            testing::debug_print(core::str::from_utf8(&s).unwrap());
+            let s: string::String<2> = (params.ui_screen_idx as u8).into();
+            testing::debug_print(core::str::from_utf8(&s.arr[..]).unwrap());
             testing::debug_print("\n");
 
             let idx = erc20_ctx.token_info_idx.expect("unknown token");
@@ -287,10 +296,8 @@ extern "C" fn sample_main(arg0: u32) {
                     let title = "TO:".as_bytes();
                     params.title[..title.len()].copy_from_slice(title);
                     params.title_len = title.len();
-
-                    let msg = string::to_utf8::<64>(string::Value::ARR32(erc20_ctx.destination));
-                    params.msg[..64].copy_from_slice(&msg[..]);
-                    params.msg_len = 64;
+                    params.msg[..erc20_ctx.destination.len].copy_from_slice(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]);
+                    params.msg_len = erc20_ctx.destination.len;
 
                     params.result = PluginResult::Ok;
                 }
@@ -316,8 +323,7 @@ extern "C" fn sample_main(arg0: u32) {
         _ => {
             testing::debug_print("Not implemented\n");
         }
-    }
-    
+    }   
     unsafe {
         os_lib_end();
     }
