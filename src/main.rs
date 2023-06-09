@@ -188,7 +188,7 @@ extern "C" fn sample_main(arg0: u32) {
             {
                 testing::debug_print("Token: 0x");         
                 let s: string::String<64> = erc20_ctx.address.into();
-                testing::debug_print(core::str::from_utf8(&s.arr[..]).unwrap());
+                testing::debug_print(s.print().unwrap());
                 testing::debug_print("\n");
 
                 testing::debug_print("method: ");
@@ -196,7 +196,7 @@ extern "C" fn sample_main(arg0: u32) {
                 testing::debug_print("\n");
 
                 testing::debug_print("destination: ");
-                testing::debug_print(core::str::from_utf8(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]).unwrap());
+                testing::debug_print(erc20_ctx.destination.print().unwrap());
                 testing::debug_print("\n");
 
                 testing::debug_print("amount: ");
@@ -262,7 +262,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             testing::debug_print("requested screen index: ");
             let s: string::String<2> = (params.ui_screen_idx as u8).into();
-            testing::debug_print(core::str::from_utf8(&s.arr[..]).unwrap());
+            testing::debug_print(s.print().unwrap());
             testing::debug_print("\n");
 
             let idx = erc20_ctx.token_info_idx.expect("unknown token");
