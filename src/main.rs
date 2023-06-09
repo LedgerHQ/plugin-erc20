@@ -245,8 +245,8 @@ extern "C" fn sample_main(arg0: u32) {
             let _core_params = params.core_params.as_mut().unwrap();
 
             let title = "ERC-20 OPERATION".as_bytes();
-            params.title[..title.len()].copy_from_slice(title);
-            params.title_len = title.len();
+            params.title.arr[..title.len()].copy_from_slice(title);
+            params.title.len = title.len();
             
             params.result = PluginResult::Ok;
         }
@@ -271,47 +271,47 @@ extern "C" fn sample_main(arg0: u32) {
             match params.ui_screen_idx {
                 0 => {
                     let title = "TOKEN:".as_bytes();
-                    params.title[..title.len()].copy_from_slice(title);
-                    params.title_len = title.len();
+                    params.title.arr[..title.len()].copy_from_slice(title);
+                    params.title.len = title.len();
 
                     
                     let msg = token.name.as_bytes(); 
-                    params.msg[..msg.len()].copy_from_slice(msg);
-                    params.msg_len = msg.len();
+                    params.msg.arr[..msg.len()].copy_from_slice(msg);
+                    params.msg.len = msg.len();
 
                     params.result = PluginResult::Ok;
                 }
                 1 => {
                     let title = "METHOD:".as_bytes();
-                    params.title[..title.len()].copy_from_slice(title);
-                    params.title_len = title.len();
+                    params.title.arr[..title.len()].copy_from_slice(title);
+                    params.title.len = title.len();
 
                     let msg = erc20_ctx.method.as_bytes();
-                    params.msg[..msg.len()].copy_from_slice(msg);
-                    params.msg_len = msg.len();
+                    params.msg.arr[..msg.len()].copy_from_slice(msg);
+                    params.msg.len = msg.len();
 
                     params.result = PluginResult::Ok;
                 }
                 2 => {
                     let title = "TO:".as_bytes();
-                    params.title[..title.len()].copy_from_slice(title);
-                    params.title_len = title.len();
-                    params.msg[..erc20_ctx.destination.len].copy_from_slice(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]);
-                    params.msg_len = erc20_ctx.destination.len;
+                    params.title.arr[..title.len()].copy_from_slice(title);
+                    params.title.len = title.len();
+                    params.msg.arr[..erc20_ctx.destination.len].copy_from_slice(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]);
+                    params.msg.len = erc20_ctx.destination.len;
 
                     params.result = PluginResult::Ok;
                 }
                 3 => {
                     let title = "AMOUNT:".as_bytes();
-                    params.title[..title.len()].copy_from_slice(title);
-                    params.title_len = title.len();
+                    params.title.arr[..title.len()].copy_from_slice(title);
+                    params.title.len = title.len();
 
                     let mut amount_string: [u8; 100] = [b'0'; 100];
                     let mut amount_string_length: usize = 0;
                     string::uint256_to_float(&erc20_ctx.amount, token.decimals, &mut amount_string[..], &mut amount_string_length);
                     
-                    params.msg[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
-                    params.msg_len = amount_string_length;
+                    params.msg.arr[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
+                    params.msg.len = amount_string_length;
 
                     params.result = PluginResult::Ok;
                 }
