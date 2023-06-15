@@ -24,7 +24,7 @@ use nanos_sdk::{
     testing
 };
 
-use nanos_sdk::starknet::{
+use starknet_sdk::types::{
     AbstractCall,
     Call,
     TransactionInfo, 
@@ -138,12 +138,6 @@ extern "C" fn sample_main(arg0: u32) {
             let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
             let call: &AbstractCall = unsafe {&*(params.data_in as *const AbstractCall)};
 
-            /*{
-                let s = string::to_utf8::<64>(string::Value::ARR32(tx_info.sender_address.value));
-                testing::debug_print(core::str::from_utf8(&s).unwrap());
-                testing::debug_print("\n");
-            }*/
-
             erc20_ctx.address = call.to.value; 
             for i in 0..N_SELECTORS {
                 if call.selector.value == selectors[i].value {
@@ -188,7 +182,7 @@ extern "C" fn sample_main(arg0: u32) {
             {
                 testing::debug_print("Token: 0x");         
                 let s: string::String<64> = erc20_ctx.address.into();
-                testing::debug_print(s.print().unwrap());
+                testing::debug_print(s.as_str());
                 testing::debug_print("\n");
 
                 testing::debug_print("method: ");
@@ -196,14 +190,12 @@ extern "C" fn sample_main(arg0: u32) {
                 testing::debug_print("\n");
 
                 testing::debug_print("destination: ");
-                testing::debug_print(erc20_ctx.destination.print().unwrap());
+                testing::debug_print(erc20_ctx.destination.as_str());
                 testing::debug_print("\n");
 
                 testing::debug_print("amount: ");
-                let mut amount_string: [u8; 100] = [b'0'; 100];
-                let mut amount_string_length: usize = 0;
-                string::uint256_to_float(&erc20_ctx.amount, 18, &mut amount_string[..], &mut amount_string_length);
-                testing::debug_print(core::str::from_utf8(&amount_string[..amount_string_length]).unwrap());
+                let s = string::uint256_to_float(&erc20_ctx.amount, 18);
+                testing::debug_print(s.as_str());
                 testing::debug_print("\n");
             }
             params.result = PluginResult::Ok;
@@ -262,7 +254,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             testing::debug_print("requested screen index: ");
             let s: string::String<2> = (params.ui_screen_idx as u8).into();
-            testing::debug_print(s.print().unwrap());
+            testing::debug_print(s.as_str());
             testing::debug_print("\n");
 
             let idx = erc20_ctx.token_info_idx.expect("unknown token");
@@ -306,12 +298,9 @@ extern "C" fn sample_main(arg0: u32) {
                     params.title.arr[..title.len()].copy_from_slice(title);
                     params.title.len = title.len();
 
-                    let mut amount_string: [u8; 100] = [b'0'; 100];
-                    let mut amount_string_length: usize = 0;
-                    string::uint256_to_float(&erc20_ctx.amount, token.decimals, &mut amount_string[..], &mut amount_string_length);
-                    
-                    params.msg.arr[..amount_string_length].copy_from_slice(&amount_string[..amount_string_length]);
-                    params.msg.len = amount_string_length;
+                    let s = string::uint256_to_float(&erc20_ctx.amount, token.decimals);                    
+                    params.msg.arr[..s.len].copy_from_slice(&s.arr[..s.len]);
+                    params.msg.len = s.len;
 
                     params.result = PluginResult::Ok;
                 }
