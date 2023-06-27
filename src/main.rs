@@ -134,10 +134,10 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
+            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
 
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
             let call: &AbstractCall = unsafe {&*(params.data_in as *const AbstractCall)};
-
+    
             erc20_ctx.address = call.to.value; 
             for i in 0..N_SELECTORS {
                 if call.selector.value == selectors[i].value {
@@ -145,6 +145,7 @@ extern "C" fn sample_main(arg0: u32) {
                 }
             }
             params.result = PluginResult::Ok;
+        
         }   
         PluginInteractionType::Feed => {
             testing::debug_print("Feed plugin\n");
@@ -153,8 +154,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
 
             let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<32>; 16]))};
             let calldata = data_in.0;
@@ -207,8 +207,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -249,8 +248,7 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-
-            let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(core_params.plugin_internal_ctx as *mut Erc20Ctx)};
+            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
 
             testing::debug_print("requested screen index: ");
             let s: string::String<2> = (params.ui_screen_idx as u8).into();
@@ -316,4 +314,14 @@ extern "C" fn sample_main(arg0: u32) {
     unsafe {
         os_lib_end();
     }
+}
+
+fn get_context(buf: *mut u8) -> &'static mut Erc20Ctx {
+    
+    let addr = buf as usize;
+    let alignment = core::mem::align_of::<Erc20Ctx>();
+    let offset: isize = (alignment - (addr % alignment)) as isize;
+    let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(buf.offset(offset) as *mut Erc20Ctx)};
+
+    erc20_ctx
 }
