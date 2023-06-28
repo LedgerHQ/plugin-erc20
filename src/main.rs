@@ -134,7 +134,9 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginInitParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
+            let erc20_ctx = 
+                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                .expect("error when getting ctx");
 
             let call: &AbstractCall = unsafe {&*(params.data_in as *const AbstractCall)};
     
@@ -154,7 +156,9 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFeedParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
+            let erc20_ctx = 
+                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                .expect("error when getting ctx");
 
             let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<32>; 16]))};
             let calldata = data_in.0;
@@ -207,7 +211,9 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
+            let erc20_ctx = 
+                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                .expect("error when getting ctx");
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -248,7 +254,9 @@ extern "C" fn sample_main(arg0: u32) {
 
             let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
             let core_params = params.core_params.as_mut().unwrap();
-            let erc20_ctx = get_context(core_params.plugin_internal_ctx);
+            let erc20_ctx = 
+                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                .expect("error when getting ctx");
 
             testing::debug_print("requested screen index: ");
             let s: string::String<2> = (params.ui_screen_idx as u8).into();
@@ -316,12 +324,19 @@ extern "C" fn sample_main(arg0: u32) {
     }
 }
 
-fn get_context(buf: *mut u8) -> &'static mut Erc20Ctx {
+fn get_context(buf: *mut u8, buf_len: usize) -> Option<&'static mut Erc20Ctx> {
     
-    let addr = buf as usize;
-    let alignment = core::mem::align_of::<Erc20Ctx>();
-    let offset: isize = (alignment - (addr % alignment)) as isize;
-    let erc20_ctx: &mut Erc20Ctx = unsafe {&mut *(buf.offset(offset) as *mut Erc20Ctx)};
+    let ctx_size = core::mem::size_of::<Erc20Ctx>();
+    let ctx_alignment = core::mem::align_of::<Erc20Ctx>();
+    let buf_addr = buf as usize;
+    let offset: isize = (ctx_alignment - (buf_addr % ctx_alignment)) as isize;
 
-    erc20_ctx
+    if (buf_len - offset as usize) < ctx_size {
+        testing::debug_print("buffer ctx too small!!\n");
+        return None;
+    }
+
+    let ctx: &mut Erc20Ctx = unsafe {&mut *(buf.offset(offset) as *mut Erc20Ctx)};
+
+    Some(ctx)
 }
