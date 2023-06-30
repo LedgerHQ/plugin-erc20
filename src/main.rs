@@ -8,13 +8,7 @@ use nanos_sdk::bindings::{
 nanos_sdk::set_panic!(nanos_sdk::exiting_panic);
 
 use nanos_sdk::plugin::{
-    PluginCoreParams,
-    PluginCheckParams,
-    PluginInitParams,
-    PluginFeedParams,
-    PluginFinalizeParams,
-    PluginQueryUiParams,
-    PluginGetUiParams,
+    PluginParam,
     PluginInteractionType,
     PluginResult
 };
@@ -28,7 +22,9 @@ use starknet_sdk::types::{
     AbstractCall,
     Call,
     TransactionInfo, 
-    FieldElement, AbstractCallData
+    FieldElement, 
+    AbstractCallData,
+    UiParam
 };
 
 struct Selector {
@@ -130,12 +126,11 @@ extern "C" fn sample_main(arg0: u32) {
         PluginInteractionType::Init => {
             testing::debug_print("Init plugin context\n");
 
-            let value2 = unsafe { *args.add(1) as *mut PluginInitParams };
+            let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
-            let params: &mut PluginInitParams = unsafe { &mut *value2 };
-            let core_params = params.core_params.as_mut().unwrap();
+            let params: &mut PluginParam = unsafe { &mut *value2 };
             let erc20_ctx = 
-                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                get_context(params.plugin_internal_ctx, params.plugin_internal_ctx_len)
                 .expect("error when getting ctx");
 
             let call: &AbstractCall = unsafe {&*(params.data_in as *const AbstractCall)};
@@ -152,12 +147,11 @@ extern "C" fn sample_main(arg0: u32) {
         PluginInteractionType::Feed => {
             testing::debug_print("Feed plugin\n");
 
-            let value2 = unsafe { *args.add(1) as *mut PluginFeedParams };
+            let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
-            let params: &mut PluginFeedParams = unsafe { &mut *value2 };
-            let core_params = params.core_params.as_mut().unwrap();
+            let params: &mut PluginParam = unsafe { &mut *value2 };
             let erc20_ctx = 
-                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                get_context(params.plugin_internal_ctx, params.plugin_internal_ctx_len)
                 .expect("error when getting ctx");
 
             let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<32>; 16]))};
@@ -207,13 +201,14 @@ extern "C" fn sample_main(arg0: u32) {
         PluginInteractionType::Finalize => {
             testing::debug_print("Finalize plugin\n");
 
-            let value2 = unsafe { *args.add(1) as *mut PluginFinalizeParams };
+            let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
-            let params: &mut PluginFinalizeParams = unsafe { &mut *value2 };
-            let core_params = params.core_params.as_mut().unwrap();
+            let params: &mut PluginParam = unsafe { &mut *value2 };
             let erc20_ctx = 
-                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                get_context(params.plugin_internal_ctx, params.plugin_internal_ctx_len)
                 .expect("error when getting ctx");
+
+            let data_out = unsafe { &mut *(params.data_out as *mut UiParam)};
 
             erc20_ctx.token_info_idx = None;
             for i in 0..2 {
@@ -221,7 +216,7 @@ extern "C" fn sample_main(arg0: u32) {
                     erc20_ctx.token_info_idx = Some(i);
                 }
             }
-            params.num_ui_screens = 4;
+            data_out.num_ui_screens = 4;
             params.result = match erc20_ctx.token_info_idx {
                 Some(_idx) => {
                     testing::debug_print("token info found in plugin\n");
@@ -236,77 +231,80 @@ extern "C" fn sample_main(arg0: u32) {
         PluginInteractionType::QueryUi => {
             testing::debug_print("QueryUI plugin\n");
 
-            let value2 = unsafe { *args.add(1) as *mut PluginQueryUiParams };
+            let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
-            let params: &mut PluginQueryUiParams = unsafe { &mut *value2 };
-            let _core_params = params.core_params.as_mut().unwrap();
+            let params: &mut PluginParam = unsafe { &mut *value2 };
+            let out_title = unsafe {&mut *(params.data_out as *mut string::String<32>) };
 
             let title = "ERC-20 OPERATION".as_bytes();
-            params.title.arr[..title.len()].copy_from_slice(title);
-            params.title.len = title.len();
+            out_title.arr[..title.len()].copy_from_slice(title);
+            out_title.len = title.len();
             
             params.result = PluginResult::Ok;
         }
         PluginInteractionType::GetUi => {
             testing::debug_print("GetUI plugin\n");
 
-            let value2 = unsafe { *args.add(1) as *mut PluginGetUiParams };
+            let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
-            let params: &mut PluginGetUiParams = unsafe { &mut *value2 };
-            let core_params = params.core_params.as_mut().unwrap();
+            let params: &mut PluginParam = unsafe { &mut *value2 };
             let erc20_ctx = 
-                get_context(core_params.plugin_internal_ctx, core_params.plugin_internal_ctx_len)
+                get_context(params.plugin_internal_ctx, params.plugin_internal_ctx_len)
                 .expect("error when getting ctx");
 
+            let ui_screen_idx = unsafe { *(params.data_in as *const u8) };
+            //let data_out = unsafe { &mut *(params.data_out as *mut (&mut string::String<32>, &mut string::String<64>))};
+            let data_out = unsafe { &mut *(params.data_out as *mut UiParam)};
+
             testing::debug_print("requested screen index: ");
-            let s: string::String<2> = (params.ui_screen_idx as u8).into();
+            let s: string::String<2> = ui_screen_idx.into();
             testing::debug_print(s.as_str());
             testing::debug_print("\n");
 
             let idx = erc20_ctx.token_info_idx.expect("unknown token");
             let token = tokens[idx];
 
-            match params.ui_screen_idx {
+            match ui_screen_idx {
                 0 => {
                     let title = "TOKEN:".as_bytes();
-                    params.title.arr[..title.len()].copy_from_slice(title);
-                    params.title.len = title.len();
+                    data_out.title.arr[..title.len()].copy_from_slice(title);
+                    data_out.title.len = title.len();
 
                     
                     let msg = token.name.as_bytes(); 
-                    params.msg.arr[..msg.len()].copy_from_slice(msg);
-                    params.msg.len = msg.len();
+                    data_out.msg.arr[..msg.len()].copy_from_slice(msg);
+                    data_out.msg.len = msg.len();
 
                     params.result = PluginResult::Ok;
                 }
                 1 => {
                     let title = "METHOD:".as_bytes();
-                    params.title.arr[..title.len()].copy_from_slice(title);
-                    params.title.len = title.len();
+                    data_out.title.arr[..title.len()].copy_from_slice(title);
+                    data_out.title.len = title.len();
 
                     let msg = erc20_ctx.method.as_bytes();
-                    params.msg.arr[..msg.len()].copy_from_slice(msg);
-                    params.msg.len = msg.len();
+                    data_out.msg.arr[..msg.len()].copy_from_slice(msg);
+                    data_out.msg.len = msg.len();
 
                     params.result = PluginResult::Ok;
                 }
                 2 => {
                     let title = "TO:".as_bytes();
-                    params.title.arr[..title.len()].copy_from_slice(title);
-                    params.title.len = title.len();
-                    params.msg.arr[..erc20_ctx.destination.len].copy_from_slice(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]);
-                    params.msg.len = erc20_ctx.destination.len;
+                    data_out.title.arr[..title.len()].copy_from_slice(title);
+                    data_out.title.len = title.len();
+                    data_out.msg.arr[..erc20_ctx.destination.len].copy_from_slice(&erc20_ctx.destination.arr[..erc20_ctx.destination.len]);
+                    data_out.msg.len = erc20_ctx.destination.len;
 
                     params.result = PluginResult::Ok;
                 }
                 3 => {
                     let title = "AMOUNT:".as_bytes();
-                    params.title.arr[..title.len()].copy_from_slice(title);
-                    params.title.len = title.len();
+                    data_out.title.arr[..title.len()].copy_from_slice(title);
+                    data_out.title.len = title.len();
 
                     let s = string::uint256_to_float(&erc20_ctx.amount, token.decimals);                    
-                    params.msg.arr[..s.len].copy_from_slice(&s.arr[..s.len]);
-                    params.msg.len = s.len;
+                    data_out.msg.arr[..s.len].copy_from_slice(&s.arr[..s.len]);
+                    data_out.msg.len = s.len;
 
                     params.result = PluginResult::Ok;
                 }
