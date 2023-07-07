@@ -121,10 +121,10 @@ extern "C" fn sample_main(arg0: u32) {
     
     match operation {
         PluginInteractionType::Check => {
-            testing::debug_print("Check plugin presence\n");
+            testing::debug_print("Check erc-20 plugin presence\n");
         }
         PluginInteractionType::Init => {
-            testing::debug_print("Init plugin context\n");
+            testing::debug_print("Init erc-20 plugin context\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
@@ -145,7 +145,7 @@ extern "C" fn sample_main(arg0: u32) {
         
         }   
         PluginInteractionType::Feed => {
-            testing::debug_print("Feed plugin\n");
+            testing::debug_print("Feed erc-20 plugin\n");
 
             let value2 = unsafe { *args.add(1) as *mut PluginParam };
 
@@ -154,7 +154,7 @@ extern "C" fn sample_main(arg0: u32) {
                 get_context(params.plugin_internal_ctx, params.plugin_internal_ctx_len)
                 .expect("error when getting ctx");
 
-            let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<32>; 16]))};
+            let data_in = unsafe{ &*(params.data_in as *const (&[AbstractCallData; 8], &[string::String<64>; 8]))};
             let calldata = data_in.0;
             let call_to_string = data_in.1;
 
